@@ -34,7 +34,6 @@ def create_dag():
     jobs_config = {path.name: read_config(path/'config.yml') for path in jobs_path}
     register_dependencies(jobs, jobs_config)
 
-    # print(jobs['job_1'].upstream_group_ids, get_root_tasks(jobs))
     start >> get_root_tasks(jobs)
     get_leaf_tasks(jobs) >> end
 

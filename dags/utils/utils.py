@@ -1,3 +1,4 @@
+import functools
 import typing
 import yaml
 import os
@@ -40,3 +41,16 @@ def get_leaf_tasks(jobs):
 
 def get_root_tasks(jobs):
     return [job for job_id, job in jobs.items() if len(job.upstream_group_ids) == 0]
+
+
+def enable_job(func=None, *, enable=True):
+    if func is None:
+        return functools.partial(enable_job, enable=enable)
+
+    if not enable:
+        func.tg_kwargs['ui_color'] = "#737373"
+        func.tg_kwargs['tooltip'] = "Disabled job"
+        def job(): ...
+        func.function = job
+
+    return func
