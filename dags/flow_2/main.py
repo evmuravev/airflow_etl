@@ -23,9 +23,6 @@ jobs_ids = config.get('jobs')
     schedule_interval=None,
 )
 def create_dag():
-    start = EmptyOperator(task_id="start")
-    end = EmptyOperator(task_id="end")
-
     jobs_path = []
     for path in Path(__file__).parent.glob('**/'):
         if path.name in jobs_ids:
@@ -35,8 +32,11 @@ def create_dag():
 
     register_dependencies(jobs, jobs_config)
 
+    start = EmptyOperator(task_id="start")
+    end = EmptyOperator(task_id="end")
+
     start >> get_root_tasks(jobs)
     get_leaf_tasks(jobs) >> end
 
 
-globals()[dag_id] = create_dag()
+create_dag()

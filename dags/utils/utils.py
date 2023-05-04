@@ -1,22 +1,66 @@
 import functools
+import gc
+import inspect
 import typing
 import yaml
 import os
 import glob
 import importlib.util
 from airflow.utils.task_group import TaskGroup
+from airflow.decorators import task_group
+from airflow.operators.python import PythonOperator
+from airflow import AirflowException
+
+
+def clean_up_dag(dag):
+    for k in list(dag.task_group.children.keys()):
+        del dag.task_group.children[k]
+    gc.collect()
 
 
 def read_jobs(paths) -> typing.Dict[str, TaskGroup]:
-    jobs = []
+    dag = (
+        inspect.currentframe()
+        .f_back.f_back
+        .f_locals['dag_obj']
+    )
+    jobs: typing.List[typing.Callable] = []
     for path in paths:
         for file_path in glob.glob(os.path.join(path, '*.py')):
             module_name = os.path.splitext(os.path.basename(file_path))[0]
             spec = importlib.util.spec_from_file_location(module_name, file_path)
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
+            print(module)
             jobs += [module.job]
-    return {job.tg_kwargs['group_id']: job() for job in jobs}
+    result = {}
+
+    for _job in jobs:
+        job_id = _job.tg_kwargs['group_id']
+        try:
+            # test job
+            _job.tg_kwargs['group_id'] = _job.tg_kwargs['group_id'] + '_test'
+            _job()
+        except Exception as ex:
+            # If error - create empty task group (red)
+            @task_group(
+                group_id=job_id,
+                ui_color="#ff0000",
+                tooltip=f"Error in job: {ex}"
+            )
+            def job():
+                def bad_job(ex):
+                    raise AirflowException(f"Error in job: {ex}")
+                PythonOperator(task_id="bad_job", python_callable=bad_job)
+
+            result[job_id] = job
+        else:
+            _job.tg_kwargs['group_id'] = job_id
+            result[job_id] = _job
+    # remove all test jobs
+    clean_up_dag(dag)
+
+    return {job_id: job() for job_id, job in result.items()}
 
 
 def read_config(config_path) -> dict:
