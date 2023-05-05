@@ -35,6 +35,8 @@ depends_on:
 ##### Features:
 1. Enabling/disabling a job
 2. If a job contains some python error, it won't affect the whole dag - job will become red and disabled.
+
 _red job - task group with error inside, grey job - disabled_
+
 ![](./dag_2.png)
 
