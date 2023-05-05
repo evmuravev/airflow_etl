@@ -19,11 +19,8 @@ def clean_up_dag(dag):
 
 
 def read_jobs(paths) -> typing.Dict[str, TaskGroup]:
-    dag = (
-        inspect.currentframe()
-        .f_back.f_back
-        .f_locals['dag_obj']
-    )
+    # get dag object from parent module)
+    dag = inspect.stack()[2].frame.f_locals['dag_obj']
     jobs: typing.List[typing.Callable] = []
     for path in paths:
         for file_path in glob.glob(os.path.join(path, '*.py')):
