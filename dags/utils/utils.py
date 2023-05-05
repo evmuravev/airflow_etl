@@ -39,15 +39,16 @@ def read_jobs(paths) -> typing.Dict[str, TaskGroup]:
             _job.tg_kwargs['group_id'] = _job.tg_kwargs['group_id'] + '_test'
             _job()
         except Exception as ex:
-            # If error - create empty task group (red)
+            error_msg = f"Error in job: {ex}"
+
             @task_group(
                 group_id=job_id,
                 ui_color="#ff0000",
-                tooltip=f"Error in job: {ex}"
+                tooltip=error_msg
             )
             def job():
-                def bad_job(ex):
-                    raise AirflowException(f"Error in job: {ex}")
+                def bad_job():
+                    raise AirflowException(error_msg)
                 PythonOperator(task_id="bad_job", python_callable=bad_job)
 
             result[job_id] = job
