@@ -16,7 +16,7 @@ enable = config.get('enable', True)
 )
 def job():
     extract = EmptyOperator(task_id="extract")
-    error
+    raise Exception('some exception')
     transform = EmptyOperator(task_id="transform")
     load = EmptyOperator(task_id="load")
 

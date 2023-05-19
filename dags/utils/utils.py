@@ -12,15 +12,8 @@ from airflow.operators.python import PythonOperator
 from airflow import AirflowException
 
 
-def clean_up_dag(dag):
-    for k in list(dag.task_group.children.keys()):
-        del dag.task_group.children[k]
-    gc.collect()
-
-
 def read_jobs(paths) -> typing.Dict[str, TaskGroup]:
-    # get dag object from parent module)
-    dag = inspect.stack()[2].frame.f_locals['dag_obj']
+
     jobs: typing.List[typing.Callable] = []
     for path in paths:
         for file_path in glob.glob(os.path.join(path, '*.py')):
@@ -28,21 +21,25 @@ def read_jobs(paths) -> typing.Dict[str, TaskGroup]:
             spec = importlib.util.spec_from_file_location(module_name, file_path)
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
-            print(module)
             jobs += [module.job]
-    result = {}
-
+    res = {}
     for _job in jobs:
-        job_id = _job.tg_kwargs['group_id']
+        job_id =_job.tg_kwargs['group_id']
         try:
-            # test job
-            _job.tg_kwargs['group_id'] = _job.tg_kwargs['group_id'] + '_test'
-            _job()
+            res[job_id] = _job()
         except Exception as ex:
             error_msg = f"Error in job: {ex}"
+            # get dag object from parent module
+            dag = inspect.stack()[2].frame.f_locals['dag_obj']
+            try:
+                for task in dag.task_group_dict[job_id]:
+                    dag._remove_task(task.task_id)
+            except Exception:
+                gc.collect()
+            del dag.task_group.children[job_id]
 
             @task_group(
-                group_id=job_id,
+                group_id=job_id+'_error',
                 ui_color="#ff0000",
                 tooltip=error_msg
             )
@@ -50,15 +47,8 @@ def read_jobs(paths) -> typing.Dict[str, TaskGroup]:
                 def bad_job():
                     raise AirflowException(error_msg)
                 PythonOperator(task_id="bad_job", python_callable=bad_job)
-
-            result[job_id] = job
-        else:
-            _job.tg_kwargs['group_id'] = job_id
-            result[job_id] = _job
-    # remove all test jobs
-    clean_up_dag(dag)
-
-    return {job_id: job() for job_id, job in result.items()}
+            res[job_id] = job()
+    return res
 
 
 def read_config(config_path) -> dict:
@@ -92,7 +82,12 @@ def enable_job(func=None, *, enable=True):
     if not enable:
         func.tg_kwargs['ui_color'] = "#737373"
         func.tg_kwargs['tooltip'] = "Disabled job"
-        def job(): ...
+
+        def job():
+            def disabled_job():
+                print('This job was disabled')
+            PythonOperator(task_id="disabled_job", python_callable=disabled_job)
+
         func.function = job
 
     return func
