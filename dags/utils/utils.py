@@ -10,6 +10,7 @@ from airflow.utils.task_group import TaskGroup
 from airflow.decorators import task_group
 from airflow.operators.python import PythonOperator
 from airflow import AirflowException
+from pathlib import Path
 
 
 def read_jobs(paths) -> typing.Dict[str, TaskGroup]:
@@ -56,6 +57,15 @@ def read_config(config_path) -> dict:
         with open(config_path, "r") as config_file:
             config = yaml.safe_load(config_file)
         return config
+
+
+def add_parent_jobs(path: Path, jobs_path: set):
+    job_config = read_config(path/'config.yml')
+    deps = job_config.get('depends_on', [])
+    for dep in deps:
+        parent_path = path.with_name(dep)
+        jobs_path.add(parent_path)
+        add_parent_jobs(parent_path, jobs_path)
 
 
 def register_dependencies(jobs, jobs_config):

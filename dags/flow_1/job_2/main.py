@@ -15,8 +15,16 @@ enable = config.get('enable', True)
     group_id=job_id,
 )
 def job():
-    extract = EmptyOperator(task_id="extract")
+    extract = EmptyOperator(
+        task_id="extract",
+        inlets=[{'name': '123132', 'type': 'table'}, {'name': '4645645', 'type': 'view'}],
+        outlets=[{'name': '76876', 'type': 'table'}]
+    )
     transform = EmptyOperator(task_id="transform")
-    load = EmptyOperator(task_id="load")
+    load = EmptyOperator(
+        task_id="load",
+        inlets=[{'name': 'aaaa', 'type': 'table'}, {'name': 'bbbb', 'type': 'view'}],
+        outlets=[{'name': 'cccc', 'type': 'table'}, {'name': 'dddd', 'type': 'table'}]
+    )
 
     extract >> transform >> load

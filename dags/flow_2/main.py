@@ -1,6 +1,8 @@
+import gc
 import pendulum
 from pathlib import Path
 from utils.utils import (
+    add_parent_jobs,
     read_jobs,
     read_config,
     register_dependencies,
@@ -23,20 +25,21 @@ jobs_ids = config.get('jobs')
     schedule_interval=None,
 )
 def create_dag():
-    jobs_path = []
+    jobs_path = set()
     for path in Path(__file__).parent.glob('**/'):
         if path.name in jobs_ids:
-            jobs_path.append(path)
+            jobs_path.add(path)
+            add_parent_jobs(path, jobs_path)
+
     jobs = read_jobs(jobs_path)
     jobs_config = {path.name: read_config(path/'config.yml') for path in jobs_path}
-
     register_dependencies(jobs, jobs_config)
 
     start = EmptyOperator(task_id="start")
     end = EmptyOperator(task_id="end")
-
     start >> get_root_tasks(jobs)
     get_leaf_tasks(jobs) >> end
+    gc.collect()
 
 
 create_dag()
