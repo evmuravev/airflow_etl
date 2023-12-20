@@ -13,17 +13,39 @@ from airflow import AirflowException
 from pathlib import Path
 
 
-def read_jobs(paths) -> typing.Dict[str, TaskGroup]:
+def read_jobs(jobs_ids, jobs_paths) -> typing.Dict[str, TaskGroup]:
+    jobs_path = set()
+    for path in jobs_paths:
+        if path.name in jobs_ids:
+            jobs_path.add(path)
+            add_parent_jobs(path, jobs_path)
 
     jobs: typing.List[typing.Callable] = []
-    for path in paths:
+    res = {}
+    for path in jobs_path:
         for file_path in glob.glob(os.path.join(path, '*.py')):
             module_name = os.path.splitext(os.path.basename(file_path))[0]
             spec = importlib.util.spec_from_file_location(module_name, file_path)
             module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
-            jobs += [module.job]
-    res = {}
+            try:
+                spec.loader.exec_module(module)
+                jobs += [module.job]
+            except Exception as ex:
+                error_msg = f"Error in job: {ex}"
+                # get dag object from parent module
+                dag = inspect.stack()[2].frame.f_locals['dag_obj']
+
+                @task_group(
+                    group_id=path.name+'_error',
+                    ui_color="#ff0000",
+                    tooltip=error_msg
+                )
+                def job():
+                    def bad_job():
+                        raise AirflowException(error_msg)
+                    PythonOperator(task_id="bad_job", python_callable=bad_job)
+                res[path.name] = job()
+
     for _job in jobs:
         job_id =_job.tg_kwargs['group_id']
         try:
@@ -49,6 +71,10 @@ def read_jobs(paths) -> typing.Dict[str, TaskGroup]:
                     raise AirflowException(error_msg)
                 PythonOperator(task_id="bad_job", python_callable=bad_job)
             res[job_id] = job()
+
+    jobs_config = {path.name: read_config(path/'config.yml') for path in jobs_path}
+    register_dependencies(res, jobs_config)
+
     return res
 
 
