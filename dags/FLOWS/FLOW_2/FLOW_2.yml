@@ -1,0 +1,22 @@
+dag_id: FLOW_2
+schedule: "@once"
+jobs:
+  - job_name: JOB_1
+    job_type: dummy
+    depends_on: []
+
+  - job_name: JOB_2
+    job_type: dummy
+    depends_on: [JOB_1]
+
+  - job_name: JOB_2_1
+    job_type: dummy
+    depends_on: [JOB_2]
+
+  - job_name: JOB_3
+    job_type: dummy
+    depends_on: [JOB_1]
+
+  - job_name: JOB_4
+    job_type: dummy
+    depends_on: [JOB_2_1, JOB_3]

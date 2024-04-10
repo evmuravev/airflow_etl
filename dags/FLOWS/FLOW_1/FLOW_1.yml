@@ -1,0 +1,19 @@
+dag_id: FLOW_1
+schedule: "@once"
+tags: ['test', 'e.g.']
+jobs:
+  - job_name: JOB_1
+    job_type: dbt.dbt_model
+    enable: True
+    project: ../dbt/example_project
+    profile:
+      conn_type: postgres
+      dbt_conn_id: postgres_conn
+      target: postgres
+      schema: public
+    select: [+customers]
+
+  - job_name: JOB_2
+    job_type: dummy
+    enable: False
+    depends_on: [JOB_1]

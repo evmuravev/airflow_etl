@@ -1,7 +1,0 @@
-dag_id: flow_2
-jobs:
-  - job_1
-  - job_2
-  - job_2_1
-  - job_3
-  - job_4

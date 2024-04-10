@@ -1,3 +1,0 @@
-job_id: job_2_1
-depends_on:
-  - job_2
