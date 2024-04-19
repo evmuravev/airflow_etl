@@ -1,0 +1,83 @@
+import pendulum
+
+from airflow.decorators import dag, task_group
+from airflow.operators.empty import EmptyOperator
+{#- Импорт нужных модулей в зависимости от указанных job_type #}
+{% set job_type_mapping = {
+        'dummy': {
+            'module': 'dummy',
+            'op': 'run_dummy_op'
+        },
+        'dbt.dbt_model': {
+            'module': 'dbt_loader',
+            'op': 'run_dbt_model'
+        },
+    }
+-%}
+{%- set job_types = [] -%}
+{%- for job in jobs %}
+ {%- set _ = job_types.append(job.job_type) -%}
+{%- endfor %}
+{%- for job_type in job_types|unique %}
+from dag_generator.job_types import {{ job_type_mapping[job_type]['module'] }}
+{%- endfor %}
+
+
+@dag(
+    dag_id='{{ dag_id }}',
+    start_date=pendulum.now(tz="Europe/Moscow"),
+    schedule='{{ schedule }}',
+    description='{{ description }}',
+    tags={{ tags }}
+)
+def create_dag():
+{%- for job in jobs %}
+    {#- Генерируем конфиг для job-а (для наглядности того, что в него передается) #}
+    {{ job.job_name |lower }}_config = {
+        {%- for key, value in job.items() %}
+        '{{ key }}': {{ '\''+value+'\'' if value is string else value }},
+        {%- endfor %}
+    }
+    {# Генерируем job #}
+    @task_group(group_id='{{ job.job_name }}')
+    def {{ job.job_name }}(config):
+        {{ job_type_mapping[job.job_type]['module'] }}.{{ job_type_mapping[job.job_type]['op'] }}(config)
+{% endfor %}
+    start = EmptyOperator(task_id="start")
+    end = EmptyOperator(task_id="end")
+{# Инициация джобов #}
+{%- for job in jobs %}
+    {{ job.job_name }} = {{ job.job_name }}({{ job.job_name |lower }}_config)
+{%- endfor %}
+{#- Генерация зависимостей между тасками (>>) #}
+{% set ancestors = [] -%}
+{%- set descendants = [] -%}
+
+{%- for job in jobs -%}
+  {%- if job.get('depends_on') -%}
+    {%- for dep_job in job.depends_on -%}
+      {%- set _ = ancestors.append(dep_job) -%}
+      {%- set _ = descendants.append(job.job_name) -%}
+    {%- endfor -%}
+  {%- endif -%}
+{%- endfor -%}
+
+{%- set ancestors = ancestors|unique|list-%}
+{%- set descendants = descendants|unique|list-%}
+
+
+{%- for job in jobs %}
+  {%- if job.job_name not in descendants %}
+    start >> {{ job.job_name }}
+  {%- endif %}
+  {%- for dep_job in job.get('depends_on', []) %}
+    {{ dep_job }} >> {{ job.job_name }}
+  {%- endfor %}
+  {%- if job.job_name not in ancestors %}
+    {{ job.job_name }} >> end
+  {%- endif %}
+{%- endfor %}
+
+
+create_dag()
+{# blank line #}

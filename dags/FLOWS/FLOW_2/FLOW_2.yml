@@ -1,8 +1,10 @@
 dag_id: FLOW_2
 schedule: "@once"
+tags: ['tag1', 'tag2']
+description: 'My dag'
 jobs:
   - job_name: JOB_1
-    job_type: dummy
+    job_type: dbt.dbt_model
     depends_on: []
 
   - job_name: JOB_2
